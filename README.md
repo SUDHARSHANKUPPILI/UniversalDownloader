@@ -71,10 +71,10 @@ UniversalDownloader/
    ffmpeg -version
    ffprobe -version
    ```
-4. **yt-dlp Python Package**:
-   Must be installed in the active Python environment.
+4. **Python Dependencies**:
+   Install the required Python packages into your environment:
    ```powershell
-   python -m pip install yt-dlp
+   python -m pip install flask flask-cors yt-dlp
    python -m yt_dlp --version
    ```
 

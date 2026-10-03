@@ -1,6 +1,6 @@
 # Runtime media and temporary files
-downloads/
-temp/
+/downloads/
+/temp/
 
 # Backend runtime data
 data/*.db
