@@ -92,7 +92,22 @@ To guarantee 100% reliability and security compliance, UniversalDownloader invok
 
 ---
 
-## Getting Started & Development
+## Quick Start (Windows One-Click Launcher)
+
+UniversalDownloader includes a single-click / single-command launcher that automatically verifies your environment, ensures the frontend is built, starts the server, and opens your browser:
+
+* **Double-click:** Run `start.bat` in Windows File Explorer.
+* **Or run in PowerShell:**
+  ```powershell
+  .\start.ps1
+  ```
+* **Options:**
+  * `.\start.ps1 -Dev`: Starts both Flask API and Vite development server (with hot module replacement) concurrently.
+  * `.\start.ps1 -NoBrowser`: Runs server without automatically launching the web browser.
+
+---
+
+## Manual Startup & Development
 
 ### 1. Start the Flask Backend Server
 From the project root:
