@@ -186,6 +186,7 @@ def analyze_url(url: str) -> dict:
 
         return {
             "valid": True,
+            "id": data.get("id"),
             "title": data.get("title", "Unknown"),
             "uploader": data.get("uploader"),
             "duration": data.get("duration"),

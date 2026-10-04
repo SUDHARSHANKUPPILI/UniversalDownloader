@@ -15,10 +15,34 @@ export default function AddDownloadForm({ open, onClose, onSuccess }: AddDownloa
   const [quality, setQuality] = useState('best')
   const [format, setFormat] = useState('bestvideo+bestaudio')
   const [subtitleLanguages, setSubtitleLanguages] = useState('')
+  const [useCustomTemplate, setUseCustomTemplate] = useState(false)
+  const [customTemplate, setCustomTemplate] = useState('{uploader} - {title}.{ext}')
   const [analyzing, setAnalyzing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [analysis, setAnalysis] = useState<null | { valid: boolean; title?: string; uploader?: string; duration?: number; thumbnail?: string; is_playlist?: boolean; playlist_count?: number; error?: string }>(null)
   const { notify } = useNotifications()
+
+  const getTemplatePreview = (template: string) => {
+    const title = analysis?.title || 'Video Title'
+    const uploader = analysis?.uploader || 'Uploader'
+    const date = '20261004'
+    const id = 'video_id'
+    const ext = format === 'bestaudio/best' || quality === 'audio' ? 'mp3' : 'mp4'
+
+    let result = template
+    result = result.replace(/\{title\}/g, title)
+    result = result.replace(/\{uploader\}/g, uploader)
+    result = result.replace(/\{date\}/g, date)
+    result = result.replace(/\{id\}/g, id)
+    result = result.replace(/\{ext\}/g, ext)
+    result = result.replace(/\{playlist_title\}/g, '')
+    result = result.replace(/\{playlist_index\}/g, '')
+    result = result.replace(/[<>:"/\\|?*]/g, '').trim()
+    if (!result.toLowerCase().endsWith('.' + ext.toLowerCase())) {
+      result += '.' + ext
+    }
+    return result
+  }
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
@@ -49,12 +73,14 @@ export default function AddDownloadForm({ open, onClose, onSuccess }: AddDownloa
         subtitle_languages: subtitleLanguages.trim()
           ? subtitleLanguages.split(',').map(s => s.trim()).filter(Boolean)
           : undefined,
+        filename_template: useCustomTemplate && customTemplate.trim() ? customTemplate.trim() : undefined,
       })
       if (result.success) {
         notify(`Added: ${result.title}`)
         setUrl('')
         setAnalysis(null)
         setSubtitleLanguages('')
+        setUseCustomTemplate(false)
         onClose()
         onSuccess()
       } else {
@@ -153,6 +179,50 @@ export default function AddDownloadForm({ open, onClose, onSuccess }: AddDownloa
               <option value="bestaudio/best">Audio Only</option>
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1.5">Filename Template</label>
+          <div className="flex gap-4 mb-2">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="templateChoice"
+                checked={!useCustomTemplate}
+                onChange={() => setUseCustomTemplate(false)}
+                disabled={submitting}
+              />
+              Default Template
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name="templateChoice"
+                checked={useCustomTemplate}
+                onChange={() => setUseCustomTemplate(true)}
+                disabled={submitting}
+              />
+              Custom Template
+            </label>
+          </div>
+          {useCustomTemplate && (
+            <div className="space-y-1.5">
+              <input
+                type="text"
+                value={customTemplate}
+                onChange={(e) => setCustomTemplate(e.target.value)}
+                placeholder="{uploader} - {title}.{ext}"
+                className="input"
+                disabled={submitting}
+              />
+              <p className="text-xs text-text-secondary">
+                Tokens: <span className="font-mono text-[11px]">{'{title}'}, {'{uploader}'}, {'{date}'}, {'{id}'}, {'{ext}'}, {'{playlist_title}'}, {'{playlist_index}'}</span>
+              </p>
+              <p className="text-xs text-text-secondary truncate">
+                Preview: <span className="font-mono text-text-primary">{getTemplatePreview(customTemplate)}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         <div>

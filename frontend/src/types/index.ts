@@ -113,6 +113,7 @@ export interface Settings {
   duplicate_detection: string;
   bandwidth_limit: string;
   save_location: string;
+  filename_template: string;
   notifications: string;
   retry_enabled: string;
   max_retries: string;
@@ -128,6 +129,7 @@ export interface DownloadCreatePayload {
   format?: string;
   subtitle_languages?: string[];
   save_location?: string;
+  filename_template?: string;
 }
 
 export interface ApiResponse<T> {

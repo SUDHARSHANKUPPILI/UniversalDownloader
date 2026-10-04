@@ -206,6 +206,19 @@ export default function SettingsPage() {
             />
           </Field>
           <div style={{ borderTop: '1px solid var(--card-border)' }} />
+          <Field
+            label="Filename template"
+            hint="Pattern for naming files. Supported: {title}, {uploader}, {date}, {id}, {ext}, {playlist_title}, {playlist_index}"
+          >
+            <input
+              type="text"
+              value={settings?.filename_template ?? '{title}.{ext}'}
+              onChange={(e) => set('filename_template', e.target.value)}
+              className="input w-full sm:w-64 font-mono text-xs"
+              placeholder="{title}.{ext}"
+            />
+          </Field>
+          <div style={{ borderTop: '1px solid var(--card-border)' }} />
           <Field label="Bandwidth limit" hint="0 = unlimited (bytes per second)">
             <input
               type="number"

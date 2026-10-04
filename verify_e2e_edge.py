@@ -23,6 +23,11 @@ import urllib.request
 import websocket
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 PROFILE_DIR = Path(__file__).resolve().parent / ".edge_test_profile"
 BACKEND_URL = "http://127.0.0.1:5000"

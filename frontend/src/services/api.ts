@@ -1,4 +1,4 @@
-import type { Settings } from '../types';
+import type { Settings, DownloadCreatePayload } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -26,7 +26,7 @@ export const api = {
     }),
 
   // Downloads
-  createDownload: (payload: { url: string; quality?: string; format?: string; subtitle_languages?: string[]; save_location?: string }) =>
+  createDownload: (payload: DownloadCreatePayload) =>
     request<{ success: boolean; download_id: number; title: string; is_duplicate: boolean }>('/api/v1/download', {
       method: 'POST',
       body: JSON.stringify(payload),

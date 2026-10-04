@@ -56,6 +56,7 @@ DEFAULT_SETTINGS = {
     "duplicate_detection": "true",
     "bandwidth_limit": str(DEFAULT_BANDWIDTH_LIMIT),
     "save_location": str(DOWNLOADS_DIR),
+    "filename_template": "{title}.{ext}",
     "notifications": "true",
     "retry_enabled": "true",
     "max_retries": "3",

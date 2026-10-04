@@ -45,6 +45,11 @@ from utils.files import (
     cleanup_task_temp_dir,
     list_task_temp_dirs,
 )
+from utils.template import (
+    render_filename,
+    resolve_unique_filename,
+    validate_filename_template,
+)
 
 
 def analyze_url_impl(url: str) -> dict:
@@ -151,7 +156,8 @@ class DownloadService:
     def create_download(self, url: str, quality: str = "best",
                         format_str: str = "bestvideo+bestaudio",
                         subtitle_languages: List[str] | str | None = None,
-                        save_location: str | None = None) -> dict:
+                        save_location: str | None = None,
+                        filename_template: Optional[str] = None) -> dict:
         """Create a new download and add it to the queue."""
         validation = validate_url(url)
         if not validation["safe"]:
@@ -237,6 +243,9 @@ class DownloadService:
                     "INSERT INTO security_events (event_type, severity, description) VALUES ('duplicate_detected', 'info', ?)",
                     (f"Duplicate detected for URL: {url}",),
                 )
+
+        if filename_template:
+            analysis["filename_template"] = filename_template
 
         self._update_download_metadata(download_id, analysis)
 
@@ -941,14 +950,44 @@ class DownloadService:
         # them in the files / downloads tables.
         # -----------------------------------------------------------------
         conn = get_connection()
+        tpl_row = conn.execute("SELECT value FROM settings WHERE key = 'filename_template'").fetchone()
+        default_tpl = tpl_row["value"] if tpl_row and tpl_row["value"] else "{title}.{ext}"
+
+        # Check for per-download template override
+        custom_tpl = None
+        if download.get("metadata_json"):
+            try:
+                parsed_meta = json.loads(download["metadata_json"])
+                custom_tpl = parsed_meta.get("filename_template")
+            except Exception:
+                pass
+        active_template = custom_tpl or default_tpl
+
         for f in media_files:
             file_hash = compute_file_hash(str(f))
             file_size = f.stat().st_size
             media_type = get_file_type(str(f))
 
-            dest_path = final_save_dir / f.name
-            if dest_path.exists() and dest_path != f:
-                dest_path = final_save_dir / f"{f.stem}_{int(time.time())}{f.suffix}"
+            if active_template == "{title}.{ext}":
+                target_filename = f.name
+            else:
+                meta = {}
+                if download.get("metadata_json"):
+                    try:
+                        meta = json.loads(download["metadata_json"])
+                    except Exception:
+                        pass
+                meta["title"] = download.get("title") or meta.get("title") or f.stem
+                meta["uploader"] = download.get("uploader") or meta.get("uploader") or ""
+                meta["ext"] = f.suffix.lstrip(".")
+                if not meta.get("id") and download.get("url"):
+                    import re
+                    m = re.search(r'(?:v=|youtu\.be/|shorts/)([a-zA-Z0-9_-]{6,15})', download["url"])
+                    if m:
+                        meta["id"] = m.group(1)
+                target_filename = render_filename(active_template, meta, default_ext=f.suffix)
+
+            dest_path = resolve_unique_filename(final_save_dir, target_filename)
             try:
                 shutil.move(str(f), str(dest_path))
                 file_record_path = str(dest_path)
@@ -964,7 +1003,7 @@ class DownloadService:
             conn.execute(
                 """INSERT OR REPLACE INTO files (download_id, path, filename, size, media_type, file_hash)
                 VALUES (?, ?, ?, ?, ?, ?)""",
-                (download_id, file_record_path, f.name, file_size, media_type, file_hash),
+                (download_id, file_record_path, dest_path.name, file_size, media_type, file_hash),
             )
             conn.execute(
                 "UPDATE downloads SET output_path = ?, total_size = ?, downloaded_size = ?, progress = 100, file_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -1038,9 +1077,12 @@ class DownloadService:
                             )
                     else:
                         # Standalone subtitle: move file from task_dir to final_save_dir
-                        dest_sub = final_save_dir / subtitle_path.name
-                        if dest_sub.exists() and dest_sub != subtitle_path:
-                            dest_sub = final_save_dir / f"{subtitle_path.stem}_{int(time.time())}{subtitle_path.suffix}"
+                        sub_ext = subtitle_path.suffix if subtitle_path.suffix else ".vtt"
+                        if final_video_file and final_video_file.exists():
+                            sub_name = f"{final_video_file.stem}.{subtitle_language}{sub_ext}"
+                        else:
+                            sub_name = f"{subtitle_path.stem}{sub_ext}"
+                        dest_sub = resolve_unique_filename(final_save_dir, sub_name)
                         try:
                             shutil.move(str(subtitle_path), str(dest_sub))
                             final_sub_record = str(dest_sub)

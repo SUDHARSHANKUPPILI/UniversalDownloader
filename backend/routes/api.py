@@ -3,6 +3,7 @@ from flask import request, jsonify, Blueprint
 from database.db import get_db, save_settings, get_all_settings
 from services.download_service import download_service
 from utils.files import get_download_size, compute_file_hash, safe_delete, safe_move
+from utils.template import validate_filename_template
 import os
 from pathlib import Path
 
@@ -63,6 +64,14 @@ def create_download():
     else:
         subtitle_languages = None
     save_location = data.get("save_location")
+    filename_template = data.get("filename_template")
+    if filename_template is not None and str(filename_template).strip():
+        filename_template = str(filename_template).strip()
+        is_valid, err_reason = validate_filename_template(filename_template)
+        if not is_valid:
+            return jsonify({"error": f"Invalid filename template: {err_reason}"}), 400
+    else:
+        filename_template = None
 
     result = download_service.create_download(
         url=url,
@@ -70,6 +79,7 @@ def create_download():
         format_str=format_,
         subtitle_languages=subtitle_languages,
         save_location=save_location,
+        filename_template=filename_template,
     )
 
     if not result.get("success"):
@@ -250,6 +260,13 @@ def update_settings():
             data["bandwidth_limit"] = str(value)
         except ValueError:
             return jsonify({"error": "Bandwidth limit must be an integer"}), 400
+
+    if "filename_template" in data:
+        template_val = str(data["filename_template"]).strip()
+        is_valid, err_reason = validate_filename_template(template_val)
+        if not is_valid:
+            return jsonify({"error": f"Invalid filename template: {err_reason}"}), 400
+        data["filename_template"] = template_val
 
     save_settings(data)
     return jsonify({"success": True})
