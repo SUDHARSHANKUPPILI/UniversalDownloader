@@ -46,7 +46,10 @@ UniversalDownloader/
 ├── verify_abc.py               # Subtitle embedding and stale VTT verification suite
 ├── verify_audit_fixes.py       # Backend audit robustness verification suite (7 tests)
 ├── verify_e2e_edge.py          # Microsoft Edge CDP headless browser E2E test
+├── verify_naming_templates.py  # Filename templates & collision suite (20 tests)
+├── verify_notifications.py     # Download & queue notifications suite (9 tests)
 ├── verify_temp_cleanup.py      # Temp directory lifecycle & path safety suite (9 tests)
+├── verify_video_quality.py     # Video quality & format resolution suite (14 tests)
 ├── .gitignore                  # Root Git ignore rules
 └── README.md                   # Project documentation
 ```
@@ -168,15 +171,58 @@ Behavior:
 * **Stale File Protection:**
   Subtitle files are excluded from the primary media discovery scan to prevent stale `.vtt` files from being misidentified as primary video outputs.
 
+### Video Quality Selection
+
+UniversalDownloader provides reliable video quality resolution without low-quality fallback:
+
+* **Best Quality:** Selects the highest available video stream (`bestvideo*`) and pairs it with the highest quality audio stream (`bestaudio`), supporting up to 4K / 2160p and HDR streams.
+* **Resolution Limits:** Supports explicit selection of `2160p` (4K), `1440p` (2K), `1080p` (Full HD), `720p` (HD), `480p`, and `360p`.
+* **Safe Fallback:** If a requested resolution is not offered by the source video, the engine automatically selects the highest available resolution under or equal to the requested limit.
+* **Audio Extraction:** Selecting `Audio Only` extracts high-quality audio (`bestaudio/best`) converted to MP3.
+
 ---
 
-## Temporary File Lifecycle & Safety
+### Download & Queue Notifications
 
-* **Dedicated Task Directories:** Each download executes in an isolated `temp/dl_<download_id>/` folder.
-* **Automatic Cleanup:** Completed, failed, and cancelled downloads have their temporary artifacts purged automatically.
-* **Startup Recovery:** Interrupted tasks are recovered to the queue, and orphaned temporary directories from terminal tasks are removed on backend startup. Active download directories are never touched.
-* **Path Safety:** Path traversal (`../`, absolute paths, non-integer IDs) and NTFS junctions / symlinks are strictly rejected and never followed.
-* **Media Protection:** Media files in `downloads/` and database-referenced paths are protected and never deleted by the temporary cleanup engine.
+UniversalDownloader includes a unified notification system:
+
+* **In-App Toast Notifications:** Instant feedback upon task completion, queue completion, or download failures.
+* **Desktop Notifications:** Optional integration with the browser's native Notification API for background alerts when the tab is unfocused.
+* **Smart Deduplication:** Polling, route transitions, and page refreshes never generate duplicate notification banners.
+
+---
+
+### Customizable Filename Templates
+
+Users can configure global or per-download output filename patterns in Settings:
+
+* **Available Variables:**
+  * `{title}` — Sanitized video or audio title
+  * `{uploader}` — Channel or uploader name
+  * `{date}` — Upload date (`YYYYMMDD`)
+  * `{id}` — Video identifier
+  * `{ext}` — Media file extension
+  * `{playlist_title}` — Name of the containing playlist (for playlists)
+  * `{playlist_index}` — 2-digit zero-padded item number (e.g., `01`, `02`)
+* **Security & Collisions:**
+  * Path traversal (`../`) and absolute paths are automatically stripped.
+  * Windows reserved filenames (`CON`, `NUL`, `AUX`, etc.) and invalid characters are sanitized.
+  * Duplicate filenames automatically increment (`Title.mp4`, `Title (1).mp4`, `Title (2).mp4`).
+  * Subtitle files (`.vtt`, `.srt`) are automatically synchronized with the resolved media filename.
+
+---
+
+## Troubleshooting
+
+1. **Low video quality or missing formats:**
+   * Ensure `yt-dlp` is up to date: `python -m pip install --upgrade yt-dlp`
+2. **Audio extraction or subtitle embedding fails:**
+   * Verify FFmpeg is installed and accessible in your system PATH: `ffmpeg -version`
+3. **AppLocker or Execution Policy errors on Windows:**
+   * Use `start.bat` which launches PowerShell with `-ExecutionPolicy Bypass`.
+   * yt-dlp is executed via `python -m yt_dlp` to ensure AppLocker compliance.
+4. **Port 5000 already in use:**
+   * Stop existing processes on port 5000 or run: `.\start.ps1 -Port 5050`
 
 ---
 
@@ -194,10 +240,19 @@ python verify_6_fixes.py
 # 3. Backend audit robustness (7 tests)
 python verify_audit_fixes.py
 
-# 4. End-to-end subtitle embedding & stale VTT protection
+# 4. End-to-end subtitle embedding & stale VTT protection (3 tests)
 python verify_abc.py
 
-# 5. Full browser E2E test via Microsoft Edge CDP
+# 5. Download & queue notification system (9 tests)
+python verify_notifications.py
+
+# 6. Filename templates & collision handling (20 tests)
+python verify_naming_templates.py
+
+# 7. Video quality selection & format discovery (14 tests)
+python verify_video_quality.py
+
+# 8. Full browser E2E test via Microsoft Edge CDP (16 tests)
 python verify_e2e_edge.py
 ```
 
