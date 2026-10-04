@@ -52,3 +52,7 @@ Thumbs.db
 
 # Claude/local AI tooling
 .claude/
+
+# Ad-hoc / diagnostic verification scripts
+verify_fireship_subtitles.py
+verify_regression_xztruk.py

@@ -149,6 +149,18 @@ The Flask backend is configured to serve the compiled frontend as a single-page 
 
 ## Subtitle & Media Processing
 
+### Automatic English Subtitles
+
+UniversalDownloader automatically attempts to obtain English subtitles during normal downloads.
+
+Behavior:
+
+1. Prefer available manual/native English subtitles.
+2. Fall back to English automatic captions when necessary.
+3. Handle regional English language codes such as `en-US` and `en-GB`.
+4. Embed subtitles when subtitle embedding is enabled.
+5. Explicitly disabling subtitles remains supported.
+
 * **Auto-Embed Enabled (`auto_embed_subtitles=true`):**
   yt-dlp retrieves subtitles as `.vtt`. FFmpeg remuxes the subtitle stream into the final video container with correct ISO-639 language tagging (`eng`, `spa`, `fre`, etc.). Temporary `.vtt` files are deleted after successful embedding.
 * **Standalone Subtitles (`auto_embed_subtitles=false`):**
