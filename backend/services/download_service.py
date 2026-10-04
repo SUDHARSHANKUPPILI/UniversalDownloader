@@ -665,6 +665,84 @@ class DownloadService:
         except Exception:
             pass
 
+    COMMON_REGIONAL_SUBTITLE_VARIANTS: Dict[str, List[str]] = {
+        "en": [
+            "en-US", "en-GB", "en", "en-orig", "en-en",
+            "en-CA", "en-AU", "en-NZ", "en-IE", "en-IN", "en-ZA",
+        ],
+        "es": ["es-ES", "es-419", "es", "es-orig"],
+        "pt": ["pt-BR", "pt-PT", "pt", "pt-orig"],
+        "zh": ["zh-Hans", "zh-Hant", "zh-CN", "zh-TW", "zh", "zh-orig"],
+        "fr": ["fr-FR", "fr-CA", "fr", "fr-orig"],
+        "de": ["de-DE", "de-AT", "de-CH", "de", "de-orig"],
+    }
+
+    def _expand_subtitle_languages(self, subtitle_list: List[str]) -> List[str]:
+        """Expand language codes to match base codes, regional variants, and captions.
+
+        Language matching priority and design:
+        For base code 'en', expands to specific regional variants ('en-US', 'en-GB', etc.),
+        exact base match ('en'), and original captions ('en-orig') rather than a wildcard
+        regex like 'en-.*' which would erroneously trigger yt-dlp to download ~100
+        auto-translated caption tracks (e.g. 'en-ar', 'en-es') and exhaust API rate limits.
+        Regional/native patterns are prioritized first so genuine manual tracks
+        are matched and downloaded before generic auto-translated tracks.
+        """
+        expanded: List[str] = []
+        for lang in subtitle_list:
+            clean = lang.strip()
+            if not clean:
+                continue
+            lower = clean.lower()
+            if lower in self.COMMON_REGIONAL_SUBTITLE_VARIANTS:
+                for variant in self.COMMON_REGIONAL_SUBTITLE_VARIANTS[lower]:
+                    if variant not in expanded:
+                        expanded.append(variant)
+            elif clean.isalpha() and len(clean) in (2, 3):
+                orig_tag = f"{clean}-orig"
+                if orig_tag not in expanded:
+                    expanded.append(orig_tag)
+                if clean not in expanded:
+                    expanded.append(clean)
+            else:
+                if clean not in expanded:
+                    expanded.append(clean)
+        return expanded
+
+    def _select_preferred_subtitle(self, candidate_files: List[Path], requested_langs: List[str]) -> Path:
+        """Select the best subtitle file from multiple candidates.
+
+        Priority hierarchy:
+        1. Manual / native regional or base track (clean tag like 'en-US', 'en', 'es').
+        2. Original automatic caption track ('-orig').
+        3. Auto-translated caption track.
+        Ties broken by larger file size (more complete captions) and newest mtime.
+        """
+        def score(p: Path) -> tuple:
+            name_lower = p.name.lower()
+            stem = p.stem
+            parts = stem.rsplit(".", 1)
+            lang_tag = parts[1].lower() if len(parts) == 2 else ""
+
+            # Check if this is an original auto-caption or auto-translated track
+            is_orig = "orig" in name_lower
+            is_translation = any(x in lang_tag for x in ["-en-", "-es-", "-fr-", "-de-"]) or (
+                len(lang_tag) > 3 and lang_tag.count("-") >= 2
+            )
+
+            if not is_orig and not is_translation:
+                priority = 3  # Highest: manual / native track (e.g. en-US, en, es)
+            elif is_orig:
+                priority = 2  # Medium: original auto-transcription (e.g. en-orig)
+            else:
+                priority = 1  # Lowest: auto-translated caption
+
+            file_size = p.stat().st_size
+            mtime = p.stat().st_mtime
+            return (priority, file_size, mtime)
+
+        return max(candidate_files, key=score)
+
     def _download_subtitles(self, download_id: int, url: str, task_dir: Path, subtitle_list: List[str]) -> Optional[Path]:
         """Download subtitles as a best-effort operation after video completion.
 
@@ -681,13 +759,19 @@ class DownloadService:
             # Create output template for subtitle files
             subtitle_outtmpl = str(task_dir / f"%(title)s.%(language)s.%(ext)s")
 
+            # Expand language codes so base languages (e.g. 'en') also match
+            # regional variants (e.g. 'en-US', 'en-GB') and original captions
+            expanded_langs = self._expand_subtitle_languages(subtitle_list)
+
             # Build clean argument list for subtitle-only download
             subtitle_args = list(YT_DLP_CMD) + [  # python -m yt_dlp (AppLocker-safe)
                 "--skip-download",
                 "--write-subs",
                 "--write-auto-subs",
                 "--sub-format", "vtt",
-                "--sub-langs", ",".join(subtitle_list),
+                "--sub-langs", ",".join(expanded_langs),
+                "--extractor-args", "youtube:player_client=android,web",
+                "--ignore-errors",
                 "-o", subtitle_outtmpl,
                 url
             ]
@@ -724,27 +808,30 @@ class DownloadService:
                     self._last_error[download_id] = "Subtitle download timed out"
                     return None
 
+                # 1. Detect newly created subtitle files
+                current_vtt_files = set(task_dir.glob("*.vtt"))
+                new_vtt_files = current_vtt_files - existing_vtt_files
+                valid_new_files = [f for f in new_vtt_files if f.is_file() and f.stat().st_size > 0]
+
+                # 2. If valid subtitle files were successfully downloaded, process them
+                # even if yt-dlp returned a non-zero exit code because another requested
+                # track failed (e.g. YouTube HTTP 429 on auto-translated captions).
+                if valid_new_files:
+                    chosen = self._select_preferred_subtitle(valid_new_files, subtitle_list)
+                    return chosen
+
+                # 3. Only report subtitle failure when NO usable subtitle file was produced
                 if subtitle_proc.returncode != 0:
                     output = ""
                     try:
                         output = subtitle_proc.stdout.read() if subtitle_proc.stdout else ""
-                    except:
+                    except Exception:
                         pass
                     self._last_error[download_id] = f"Subtitle download failed: {output[:200] if output else 'Unknown error'}"
                     return None
 
-                # Find newly created subtitle files
-                current_vtt_files = set(task_dir.glob("*.vtt"))
-                new_vtt_files = current_vtt_files - existing_vtt_files
-
-                if new_vtt_files:
-                    # Return the first new subtitle file found
-                    # Sort by modification time to get the most recent
-                    sorted_files = sorted(new_vtt_files, key=lambda f: f.stat().st_mtime, reverse=True)
-                    return sorted_files[0]
-                else:
-                    self._last_error[download_id] = "No new subtitle file found after download"
-                    return None
+                self._last_error[download_id] = "No new subtitle file found after download"
+                return None
 
             except Exception as e:
                 self._last_error[download_id] = f"Subtitle exception: {str(e)[:200]}"

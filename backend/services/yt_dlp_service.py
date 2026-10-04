@@ -141,6 +141,8 @@ def build_yt_dlp_args(
     # Playlist extraction
     args.append("--no-overwrites")
     args.append("--continue")
+    # Resilience against YouTube HTTP 429 blocks
+    args.extend(["--extractor-args", "youtube:player_client=android,web"])
     # Use progress-json for reliable parsing
     args.extend(["--newline", "--no-warnings"])
 
@@ -160,6 +162,7 @@ def analyze_url(url: str) -> dict:
         "--flat-playlist",
         "-J",
         "--no-warnings",
+        "--extractor-args", "youtube:player_client=android,web",
         url,
     ]
 

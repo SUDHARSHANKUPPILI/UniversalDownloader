@@ -46,7 +46,9 @@ export default function AddDownloadForm({ open, onClose, onSuccess }: AddDownloa
         url: url.trim(),
         quality,
         format,
-        subtitle_languages: subtitleLanguages.split(',').map(s => s.trim()).filter(Boolean),
+        subtitle_languages: subtitleLanguages.trim()
+          ? subtitleLanguages.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined,
       })
       if (result.success) {
         notify(`Added: ${result.title}`)
