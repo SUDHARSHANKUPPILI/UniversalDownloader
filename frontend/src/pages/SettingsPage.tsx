@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { Save, RotateCcw, Settings as SettingsIcon, Sliders } from 'lucide-react'
+import { Save, RotateCcw, Settings as SettingsIcon, Sliders, Bell } from 'lucide-react'
 import { api } from '../services/api'
 import PageHeader from '../components/ui/PageHeader'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { useNotifications } from '../components/hooks/useNotifications'
+import {
+  getNotificationPermissionState,
+  requestNotificationPermission,
+  isNotificationSupported,
+  type NotificationPermissionState
+} from '../utils/notifications'
 import type { Settings } from '../types'
 
 const BOOLEAN_KEYS: (keyof Settings)[] = [
   'auto_embed_subtitles',
   'auto_organize',
   'duplicate_detection',
-  'notifications',
   'retry_enabled',
   'embed_metadata',
   'embed_thumbnail',
@@ -20,7 +25,6 @@ const KEY_LABELS: Partial<Record<keyof Settings, string>> = {
   auto_embed_subtitles: 'Auto-embed subtitles',
   auto_organize: 'Auto-organize files',
   duplicate_detection: 'Duplicate detection',
-  notifications: 'Notifications',
   retry_enabled: 'Auto-retry on failure',
   embed_metadata: 'Embed metadata',
   embed_thumbnail: 'Embed thumbnail',
@@ -75,6 +79,52 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { notify } = useNotifications()
+
+  const [desktopEnabled, setDesktopEnabled] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('ud_desktop_notifications') === 'true'
+  })
+  const [permissionState, setPermissionState] = useState<NotificationPermissionState>(() => {
+    return getNotificationPermissionState()
+  })
+
+  const handleToggleDesktop = async (enable: boolean) => {
+    if (enable) {
+      if (!isNotificationSupported()) {
+        notify('Desktop notifications are not supported in this browser', 'error')
+        return
+      }
+      if (Notification.permission === 'default') {
+        const res = await requestNotificationPermission()
+        setPermissionState(res)
+        if (res === 'Granted') {
+          setDesktopEnabled(true)
+          localStorage.setItem('ud_desktop_notifications', 'true')
+          notify('Desktop notifications enabled')
+        } else {
+          setDesktopEnabled(false)
+          localStorage.setItem('ud_desktop_notifications', 'false')
+          if (res === 'Denied') {
+            notify('Notification permission was denied in browser settings', 'error')
+          }
+        }
+      } else if (Notification.permission === 'granted') {
+        setDesktopEnabled(true)
+        setPermissionState('Granted')
+        localStorage.setItem('ud_desktop_notifications', 'true')
+        notify('Desktop notifications enabled')
+      } else if (Notification.permission === 'denied') {
+        setDesktopEnabled(false)
+        setPermissionState('Denied')
+        localStorage.setItem('ud_desktop_notifications', 'false')
+        notify('Notification permission is blocked by browser settings', 'error')
+      }
+    } else {
+      setDesktopEnabled(false)
+      localStorage.setItem('ud_desktop_notifications', 'false')
+      notify('Desktop notifications disabled')
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -200,6 +250,37 @@ export default function SettingsPage() {
               </Field>
             </React.Fragment>
           ))}
+        </Section>
+
+        {/* Notifications */}
+        <Section title="Notifications" icon={Bell}>
+          <Field label="In-app notifications" hint="Show toast alerts inside the application">
+            <Toggle
+              checked={settings?.notifications === 'true'}
+              onChange={(v) => setBool('notifications', v)}
+            />
+          </Field>
+          <div style={{ borderTop: '1px solid var(--card-border)' }} />
+          <Field
+            label="Enable desktop notifications"
+            hint="Show system notifications for completed and failed downloads"
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="text-[11px] px-2 py-0.5 rounded font-mono"
+                style={{
+                  background: permissionState === 'Granted' ? 'var(--success-subtle, rgba(34, 197, 94, 0.15))' : 'var(--card-border)',
+                  color: permissionState === 'Granted' ? 'var(--success, #22c55e)' : 'var(--muted)',
+                }}
+              >
+                {permissionState}
+              </span>
+              <Toggle
+                checked={desktopEnabled && permissionState === 'Granted'}
+                onChange={handleToggleDesktop}
+              />
+            </div>
+          </Field>
         </Section>
 
         {/* Appearance */}

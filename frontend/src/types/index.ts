@@ -33,6 +33,7 @@ export interface Download {
   thumbnail: string | null;
   duration: number | null;
   uploader: string | null;
+  output_path?: string | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

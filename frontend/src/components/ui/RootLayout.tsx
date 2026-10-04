@@ -21,6 +21,7 @@ import { useTheme } from '../hooks/useTheme'
 import NotificationContainer from './NotificationContainer'
 import { api } from '../../services/api'
 import type { Statistics } from '../../types'
+import { useDownloadNotifications } from '../../hooks/useDownloadNotifications'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -56,6 +57,9 @@ export default function RootLayout() {
   const { theme, setTheme, resolved } = useTheme()
   const location = useLocation()
   const [stats, setStats] = useState<Statistics | null>(null)
+
+  // Global download & queue notification listener
+  useDownloadNotifications()
 
   useEffect(() => {
     let cancelled = false
