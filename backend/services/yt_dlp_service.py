@@ -89,16 +89,27 @@ def build_yt_dlp_args(
     # Output template
     args.extend(["-o", output_template])
 
-    # Format selection
-    if format:
-        if format == "bestvideo+bestaudio":
-            args.extend(["-f", "bestvideo+bestaudio/best"])
+    # Format selection: harmonize quality and format parameters
+    if extract_audio or quality == "audio" or format == "bestaudio/best":
+        fmt_spec = "bestaudio/best"
+        if quality == "audio" or (format and "audio" in format.lower() and "video" not in format.lower()):
+            extract_audio = True
+    elif format and format not in ("bestvideo+bestaudio", "best", "bestaudio/best"):
+        # Custom / explicit format string passed by caller
+        fmt_spec = format
+    elif format == "best":
+        # Single progressive stream requested
+        if quality and quality != "best" and quality.endswith("p"):
+            h = quality.rstrip("p")
+            fmt_spec = f"best[height<={h}]/best"
         else:
-            args.extend(["-f", format])
+            fmt_spec = "best"
     elif quality in QUALITY_FORMAT_MAP:
-        args.extend(["-f", QUALITY_FORMAT_MAP[quality]])
+        fmt_spec = QUALITY_FORMAT_MAP[quality]
     else:
-        args.extend(["-f", "bestvideo+bestaudio/best"])
+        fmt_spec = "bestvideo*+bestaudio/best"
+
+    args.extend(["-f", fmt_spec])
 
     if FFMPEG_BIN:
         args.extend(["--ffmpeg-location", FFMPEG_BIN])
@@ -141,8 +152,6 @@ def build_yt_dlp_args(
     # Playlist extraction
     args.append("--no-overwrites")
     args.append("--continue")
-    # Resilience against YouTube HTTP 429 blocks
-    args.extend(["--extractor-args", "youtube:player_client=android,web"])
     # Use progress-json for reliable parsing
     args.extend(["--newline", "--no-warnings"])
 
@@ -162,7 +171,6 @@ def analyze_url(url: str) -> dict:
         "--flat-playlist",
         "-J",
         "--no-warnings",
-        "--extractor-args", "youtube:player_client=android,web",
         url,
     ]
 

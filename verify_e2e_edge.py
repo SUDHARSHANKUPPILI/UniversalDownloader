@@ -236,11 +236,12 @@ def run_e2e_verification():
         # -------------------------------------------------------------
         # Test clicking sidebar links in the real UI
         driver.navigate(f"{FRONTEND_URL}/", wait_seconds=1.5)
+        driver.wait_for_selector("nav a", timeout=10)
         # Click on Settings in the nav
         clicked = driver.evaluate("""
             (() => {
                 const links = Array.from(document.querySelectorAll('nav a, aside a'));
-                const settingsLink = links.find(a => a.textContent.includes('Settings'));
+                const settingsLink = links.find(a => a.textContent.includes('Settings') || a.getAttribute('href') === '/settings');
                 if (settingsLink) {
                     settingsLink.click();
                     return true;

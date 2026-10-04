@@ -163,6 +163,7 @@ export default function AddDownloadForm({ open, onClose, onSuccess }: AddDownloa
               <option value="1080p">1080p</option>
               <option value="720p">720p</option>
               <option value="480p">480p</option>
+              <option value="360p">360p</option>
               <option value="audio">Audio Only</option>
             </select>
           </div>
